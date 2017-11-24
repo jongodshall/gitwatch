@@ -1,8 +1,10 @@
 import json
 import http.client
+from datetime import datetime
 
 #constants for api calls
-headers = {'User-Agent': 'jongodshall'}    #this goes in config in the real world, but I can just be me for this purpose
+token = open('token.txt', 'r').read()
+headers = {'User-Agent': 'jongodshall', 'Authorization': 'token ' + token}    
 conn = http.client.HTTPSConnection('api.github.com')
 
 def get_json_content(path):
@@ -19,6 +21,9 @@ class PullRequest:
     def __init__(self, id):
         self.id = id
 
+    def __str__(self):
+        return self.user.name + " at " + str(self.created_at)
+
 class User:
     def __init__(self, id, username, is_site_admin):
         self.id = id
@@ -26,26 +31,58 @@ class User:
         self.is_admin = is_site_admin
 
 class Repo:
-    def __init__(self, id, name, org):
+    def __init__(self, id, name, owner, **kwargs):
         self.id = id
         self.name = name
-        self.org = org
+        self.owner = owner
+        self.pull_requests = []
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
     def __str__(self):
         return self.name + ' (' + str(self.id) + ')'
 
-    def get_pull_requests(self):
-        json_string = get_json_content('/repos/%s/%s/pulls' % (self.org, self.name))
+    def refresh_pull_requests(self):
+        ret = []
+        print('Fetching /repos/%s/%s/pulls?state=all' % (self.owner, self.name))
+        json_string = get_json_content('/repos/%s/%s/pulls?state=all' % (self.owner, self.name))
 
-        #Miniimum dataset should be who requested it, when was it requested, has it been merged and by who
-        return []
+        try:
+            pulls = json.loads(json_string)
+        except:
+            print('Unable to parse json string: %s' % json_string)
+
+        #Miniimum dataset should be who requested it, location of the new repo, when was it requested, has it been merged and by who
+        for obj in pulls:
+            pull_request = PullRequest(obj['id'])
+            pull_request.created_at = datetime.strptime(obj['created_at'],'%Y-%m-%dT%H:%M:%SZ')
+
+            pull_request.user = User(obj['user']['id'], obj['user']['login'], obj['user']['site_admin'])
+            pull_request.merged = False if obj['merged_at'] == None else True
+            if pull_request.merged:
+                merge_details = get_json_content('/repos/%s/%s/pulls/%s' % (self.owner, self.name, obj['number']))
+                try:
+                    pull = json.loads(merge_details)
+                    pull_request.merged_at = datetime.strptime(pull['merged_at'],'%Y-%m-%dT%H:%M:%SZ')
+                    pull_request.merged_by = User(pull['merged_by']['id'], pull['merged_by']['login'], pull['merged_by']['site_admin'])
+                except:
+                    print('Could not load merge details: /repos/%s/%s/pulls/%s' % (self.owner, self.name, obj['number']))
+
+            ret.append(pull_request)
+
+        #ret = sorted(ret, key=lambda p: p.created_at)    #Wait and see if a primary sort makes sense
+        #unclear if this is better served as a property or a return... depends on whether the main use cases care about organizing by repo
+        self.pull_requests = ret
 
 
 #get the list of repos for the organization
 def get_org_repos(org):
     json_string = get_json_content('/orgs/%s/repos' % org)
-    response_repos = json.loads(json_string)
 
+    try:
+        response_repos = json.loads(json_string)
+    except:
+        print('Unable to parse json string: %s' % json_string)
 
     return [Repo(obj['id'], obj['name'], org) for obj in response_repos]
 
@@ -55,7 +92,11 @@ def main():
     repos = get_org_repos('lodash')
 
     for repo in repos:
-        print(repo.name + ' - ' + str(repo.get_pull_requests()))
+        repo.refresh_pull_requests()
+        print(repo.name)
+        for p in repo.pull_requests:
+            print('\t' + str(p))
 
+    #conn.close()
 
 if __name__ == "__main__": main()
