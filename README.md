@@ -1,4 +1,13 @@
-# gitwatch v0.9
+# gitwatch v1.0
+
+## Use
+
+Expects a single command line parameter to specify the organization name:
+
+`python gitwatch.py <orgname>`
+
+Currently, the program will find all public repos for the organization, gather all pull requests for each repo, print the count of pull requests to the console, and finally print the high level details of individual pulls to a file in the tmp directory.  Each repo gets its own file.
+
 
 ## Authenitcation
 

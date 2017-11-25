@@ -87,9 +87,9 @@ class Repo:
 
             self.pull_requests.append(pull_request)
 
-        #ret = sorted(ret, key=lambda p: p.created_at)    #Wait and see if a primary sort makes sense.  Also, turns out this is the default sort anyway
-        #unclear if this is better served as a property or a return... depends on whether the main use cases care about organizing by repo
+        #ret = sorted(ret, key=lambda p: p.created_at)    #Default sort order will be reverse chron... Definitely shouldn't resort here due to recursion
 
+        #Speaking of which... recursion!
         if (next_page):
             self.refresh_pull_requests(next_page)
 
@@ -116,7 +116,7 @@ def main():
     repos = get_org_repos(org)
 
     for repo in repos:
-        f = open('tmp/%s.txt' % repo.name, 'w')
+        f = open('tmp/%s-%s.txt' % (org, repo.name), 'w')
         repo.refresh_pull_requests()
         print('%s - %d' % (repo.name, len(repo.pull_requests)))
         for p in repo.pull_requests:
