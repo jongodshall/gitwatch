@@ -2,6 +2,8 @@
 
 ## Use
 
+Created with Python 3.6.  
+
 Expects a single command line parameter to specify the organization name:
 
 `python gitwatch.py <orgname>`
