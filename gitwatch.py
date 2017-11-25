@@ -61,7 +61,7 @@ class Repo:
             pull_request.user = User(obj['user']['id'], obj['user']['login'], obj['user']['site_admin'])
             pull_request.merged = False if obj['merged_at'] == None else True
 
-            #This is likely to be userful info, but it chews up a lot of requests and they are rate limited.  Use only if needed
+            #This is likely to be useful info, but it chews up a lot of requests and they are rate limited.  Use only if needed
             if load_details and pull_request.merged:
                 merge_details = get_json_content('/repos/%s/%s/pulls/%s' % (self.owner, self.name, obj['number']))
                 try:
@@ -73,7 +73,7 @@ class Repo:
 
             ret.append(pull_request)
 
-        #ret = sorted(ret, key=lambda p: p.created_at)    #Wait and see if a primary sort makes sense
+        #ret = sorted(ret, key=lambda p: p.created_at)    #Wait and see if a primary sort makes sense.  Also, turns out this is the default sort anyway
         #unclear if this is better served as a property or a return... depends on whether the main use cases care about organizing by repo
         self.pull_requests = ret
 
