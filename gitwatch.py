@@ -1,6 +1,8 @@
+import sys
 import json
 import http.client
 from datetime import datetime
+from urllib.parse import urlparse, parse_qs
 
 #constants for api calls
 headers_raw = open('token.txt', 'r').read()
@@ -9,12 +11,22 @@ conn = http.client.HTTPSConnection('api.github.com')
 
 def get_json_content(path):
     conn.request('GET', path, headers=headers)
-
+    next_page = None
     response = conn.getresponse()
     if not response.status == 200:
         raise ValueError('Unable to connect to %s' % path)
 
-    return response.read().decode()
+    link = response.getheader('Link')
+    if link:
+        for l in link.split(','):
+            elmts = l.split(';')
+            if elmts[1] == ' rel="next"':
+                parsed_url = urlparse(elmts[0].replace('>',""))
+                qs = parse_qs(parsed_url.query)
+                if 'page' in qs:
+                    next_page = qs['page'][0]
+
+    return (response.read().decode(), next_page)
 
 #classes to represent a pull request and associated objects.  This is a best guess at what fields we are interest in; the questions for part 2 will shape this
 class PullRequest:
@@ -23,7 +35,7 @@ class PullRequest:
 
     def __str__(self):
         merge_text = 'Merged' if self.merged else 'Not Merged'
-        return self.user.name + " at " + str(self.created_at) + ' (%s)' % merge_text
+        return '%s - %s at %s (%s)\n' % (str(self.id), self.user.name, str(self.created_at), merge_text)
 
 class User:
     def __init__(self, id, username, is_site_admin):
@@ -43,10 +55,12 @@ class Repo:
     def __str__(self):
         return self.name + ' (' + str(self.id) + ')'
 
-    def refresh_pull_requests(self, load_details=False):
-        ret = []
-        print('Fetching /repos/%s/%s/pulls?state=all' % (self.owner, self.name))
-        json_string = get_json_content('/repos/%s/%s/pulls?state=all' % (self.owner, self.name))
+    def clear_pull_requests(self):
+        self.pull_requests = []
+
+    def refresh_pull_requests(self, page=1, load_details=False):
+        #print('Fetching /repos/%s/%s/pulls?state=all' % (self.owner, self.name))
+        json_string, next_page = get_json_content('/repos/%s/%s/pulls?state=all&per_page=100&page=%s' % (self.owner, self.name, page))
 
         try:
             pulls = json.loads(json_string)
@@ -71,16 +85,18 @@ class Repo:
                 except:
                     print('Could not load merge details: /repos/%s/%s/pulls/%s' % (self.owner, self.name, obj['number']))
 
-            ret.append(pull_request)
+            self.pull_requests.append(pull_request)
 
         #ret = sorted(ret, key=lambda p: p.created_at)    #Wait and see if a primary sort makes sense.  Also, turns out this is the default sort anyway
         #unclear if this is better served as a property or a return... depends on whether the main use cases care about organizing by repo
-        self.pull_requests = ret
+
+        if (next_page):
+            self.refresh_pull_requests(next_page)
 
 
 #get the list of repos for the organization
 def get_org_repos(org):
-    json_string = get_json_content('/orgs/%s/repos' % org)
+    json_string, next_page = get_json_content('/orgs/%s/repos' % org)
 
     try:
         response_repos = json.loads(json_string)
@@ -89,17 +105,24 @@ def get_org_repos(org):
 
     return [Repo(obj['id'], obj['name'], org) for obj in response_repos]
 
-
 #main block
 def main():
-    repos = get_org_repos('lodash')
+    try:
+        org = sys.argv[1]
+    except:
+        print('Please provide an org name.')
+        return
+
+    repos = get_org_repos(org)
 
     for repo in repos:
+        f = open('tmp/%s.txt' % repo.name, 'w')
         repo.refresh_pull_requests()
-        print(repo.name)
+        print('%s - %d' % (repo.name, len(repo.pull_requests)))
         for p in repo.pull_requests:
-            print('\t' + str(p))
+            f.write(str(p))
 
     conn.close()
+
 
 if __name__ == "__main__": main()
