@@ -3,8 +3,8 @@ import http.client
 from datetime import datetime
 
 #constants for api calls
-token = open('token.txt', 'r').read()
-headers = {'User-Agent': 'jongodshall', 'Authorization': 'token ' + token}    
+headers_raw = open('token.txt', 'r').read()
+headers = json.loads(headers_raw)
 conn = http.client.HTTPSConnection('api.github.com')
 
 def get_json_content(path):
@@ -22,7 +22,8 @@ class PullRequest:
         self.id = id
 
     def __str__(self):
-        return self.user.name + " at " + str(self.created_at)
+        merge_text = 'Merged' if self.merged else 'Not Merged'
+        return self.user.name + " at " + str(self.created_at) + ' (%s)' % merge_text
 
 class User:
     def __init__(self, id, username, is_site_admin):
@@ -42,7 +43,7 @@ class Repo:
     def __str__(self):
         return self.name + ' (' + str(self.id) + ')'
 
-    def refresh_pull_requests(self):
+    def refresh_pull_requests(self, load_details=False):
         ret = []
         print('Fetching /repos/%s/%s/pulls?state=all' % (self.owner, self.name))
         json_string = get_json_content('/repos/%s/%s/pulls?state=all' % (self.owner, self.name))
@@ -59,7 +60,9 @@ class Repo:
 
             pull_request.user = User(obj['user']['id'], obj['user']['login'], obj['user']['site_admin'])
             pull_request.merged = False if obj['merged_at'] == None else True
-            if pull_request.merged:
+
+            #This is likely to be userful info, but it chews up a lot of requests and they are rate limited.  Use only if needed
+            if load_details and pull_request.merged:
                 merge_details = get_json_content('/repos/%s/%s/pulls/%s' % (self.owner, self.name, obj['number']))
                 try:
                     pull = json.loads(merge_details)
@@ -97,6 +100,6 @@ def main():
         for p in repo.pull_requests:
             print('\t' + str(p))
 
-    #conn.close()
+    conn.close()
 
 if __name__ == "__main__": main()
