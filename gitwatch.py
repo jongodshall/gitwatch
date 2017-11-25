@@ -1,4 +1,5 @@
 import sys
+import os
 import json
 import http.client
 from datetime import datetime
@@ -114,6 +115,10 @@ def main():
         return
 
     repos = get_org_repos(org)
+
+    if not os.path.exists('tmp'):
+        os.makedirs('tmp')
+
 
     for repo in repos:
         f = open('tmp/%s-%s.txt' % (org, repo.name), 'w')
