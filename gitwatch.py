@@ -54,7 +54,7 @@ class Repo:
             setattr(self, k, v)
 
     def __str__(self):
-        return self.name + ' (' + str(self.id) + ')'
+        return '%s (%s)' % (self.name, str(self.id))
 
     def clear_pull_requests(self):
         self.pull_requests = []
@@ -118,7 +118,6 @@ def main():
 
     if not os.path.exists('tmp'):
         os.makedirs('tmp')
-
 
     for repo in repos:
         f = open('tmp/%s-%s.txt' % (org, repo.name), 'w')
